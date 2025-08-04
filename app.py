@@ -13,6 +13,8 @@ import requests
 import xml.etree.ElementTree as ET
 from text import extract_text_from_image, extract_text_from_pdf, extract_text_from_xml, improved_parse_weather_data
 from script import generate_script_with_ollama
+from rag_integration import RAGWeatherGenerator, enhance_prompt_with_rag
+from cache_system import WeatherCache, get_cached_response, add_to_cache
 
 
 SNRT_PRIMARY = "#d8d8d8"
@@ -156,6 +158,26 @@ def main():
         }[x]
     )
     
+    # Affichage des statistiques du cache
+    if 'weather_cache' in st.session_state and st.session_state.weather_cache:
+        st.sidebar.markdown("---")
+        st.sidebar.header("📊 Cache Statistics")
+        
+        try:
+            cache_stats = st.session_state.weather_cache.get_cache_stats()
+            st.sidebar.metric("Cache Entries", cache_stats["total_entries"])
+            st.sidebar.metric("Cache Size", f"{cache_stats['total_size_bytes'] / 1024:.1f} KB")
+            st.sidebar.metric("Avg Age", f"{cache_stats['average_age_hours']:.1f} hours")
+            
+            # Bouton pour nettoyer le cache
+            if st.sidebar.button("🗑️ Clear Cache"):
+                removed = st.session_state.weather_cache.clear_cache()
+                st.sidebar.success(f"Cleared {removed} entries")
+                st.rerun()
+                
+        except Exception as e:
+            st.sidebar.error(f"Cache stats error: {e}")
+    
     col1, col2, col3 = st.columns([1.2, 0.3, 1])
     with col1:
         st.header("📁 Uploader les fichiers")
@@ -231,9 +253,27 @@ def main():
     with col3:
         st.header("🎙️ Script généré")
         
+        # Initialisation du système RAG et du cache (une seule fois)
+        if 'rag_generator' not in st.session_state:
+            try:
+                st.session_state.rag_generator = RAGWeatherGenerator("dataset.json")
+                # st.success("✅ Système RAG initialisé avec succès!")  # Message supprimé
+            except Exception as e:
+                st.error(f"❌ Erreur lors de l'initialisation du RAG: {e}")
+                st.session_state.rag_generator = None
+        
+        # Initialisation du système de cache
+        if 'weather_cache' not in st.session_state:
+            try:
+                st.session_state.weather_cache = WeatherCache()
+                st.success("✅ Système de cache initialisé!")
+            except Exception as e:
+                st.error(f"❌ Erreur lors de l'initialisation du cache: {e}")
+                st.session_state.weather_cache = None
+        
         if st.button("🚀 Générer le script", type="primary"):
             if hasattr(st.session_state, 'extracted_text') and st.session_state.extracted_text:
-                with st.spinner("🔄 Génération du script..."):
+                with st.spinner("🔄 Génération du script avec cache et RAG..."):
                     # Load prompt template and fill placeholders
                     prompt_template = load_prompt_template(language, "prompt_weather.txt")
                     
@@ -245,14 +285,64 @@ def main():
                     
                     # Replace document types placeholder with the list of types
                     prompt = prompt_template.replace("{document_types}", doc_types_info)
-                    # Add file contents after document type replacement
-                    prompt = prompt.replace("{data}", st.session_state.extracted_text)
-                    script = generate_script_with_ollama(prompt)
-                    @st.cache_resource(ttl=3600)
-                    def cached_generate_script_with_ollama(prompt):
-                        return generate_script_with_ollama(prompt)
-                    script = cached_generate_script_with_ollama(prompt)
+                    
+                    # Vérification du cache en premier
+                    cache_hit = False
+                    if st.session_state.weather_cache:
+                        try:
+                            # Construction du prompt final pour la recherche dans le cache
+                            final_prompt = prompt.replace("{data}", st.session_state.extracted_text)
+                            cached_response = st.session_state.weather_cache.get_from_cache(final_prompt)
+                            
+                            if cached_response:
+                                script = cached_response
+                                cache_hit = True
+                                st.success("⚡ Réponse trouvée dans le cache!")
+                                st.info("💡 Cette réponse a été générée précédemment pour des données similaires")
+                        except Exception as e:
+                            st.warning(f"⚠️ Erreur lors de la vérification du cache: {e}")
+                    
+                    # Si pas de cache hit, génération normale avec RAG
+                    if not cache_hit:
+                        # Utilisation du système RAG si disponible
+                        if st.session_state.rag_generator:
+                            try:
+                                # Amélioration du prompt avec le contexte RAG (optimisé)
+                                enhanced_prompt = st.session_state.rag_generator.enhance_prompt_with_rag(
+                                    prompt, 
+                                    st.session_state.extracted_text,
+                                    file_types=st.session_state.file_types,
+                                    doc_type_labels=doc_type_labels,
+                                    top_k=2  # Réduit de 3 à 2 pour éviter les timeouts
+                                )
+                                st.info("🔍 Contexte RAG appliqué pour améliorer la génération")
+                            except Exception as e:
+                                st.warning(f"⚠️ Erreur RAG, utilisation du prompt standard: {e}")
+                                enhanced_prompt = prompt.replace("{data}", st.session_state.extracted_text)
+                        else:
+                            # Fallback vers la méthode originale
+                            enhanced_prompt = prompt.replace("{data}", st.session_state.extracted_text)
+                        
+                        # Génération du script avec Ollama
+                        script = generate_script_with_ollama(enhanced_prompt)
+                        
+                        # Ajout au cache pour les futures utilisations
+                        if st.session_state.weather_cache and script:
+                            try:
+                                final_prompt = prompt.replace("{data}", st.session_state.extracted_text)
+                                metadata = {
+                                    "language": language,
+                                    "document_types": list(st.session_state.file_types.values()),
+                                    "file_count": len(st.session_state.file_types)
+                                }
+                                st.session_state.weather_cache.add_to_cache(final_prompt, script, metadata)
+                                st.info("💾 Réponse ajoutée au cache pour les futures utilisations")
+                            except Exception as e:
+                                st.warning(f"⚠️ Erreur lors de l'ajout au cache: {e}")
+                    
+                    # Sauvegarde du script dans la session
                     st.session_state.generated_script = script
+                    
                     # Always update chat context with latest script
                     if 'ollama_chat_history' not in st.session_state:
                         st.session_state.ollama_chat_history = []
