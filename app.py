@@ -117,7 +117,7 @@ def extract_text_from_xml(xml_file):
         return None
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=60)  # Reduced from 3600 to 60 seconds for prompt template
 def load_prompt_template(language, prompt_file="prompt_weather.txt"):
     """Load the prompt template for the given language from prompt.txt."""
     try:
@@ -307,15 +307,15 @@ def main():
                         # Utilisation du système RAG si disponible
                         if st.session_state.rag_generator:
                             try:
-                                # Amélioration du prompt avec le contexte RAG (optimisé)
-                                enhanced_prompt = st.session_state.rag_generator.enhance_prompt_with_rag(
+                                # Amélioration du prompt avec le contexte RAG utilisant chat template
+                                enhanced_prompt = st.session_state.rag_generator.enhance_prompt_with_chat_template(
                                     prompt, 
                                     st.session_state.extracted_text,
                                     file_types=st.session_state.file_types,
                                     doc_type_labels=doc_type_labels,
-                                    top_k=2  # Réduit de 3 à 2 pour éviter les timeouts
+                                    top_k=1  # Utiliser seulement 1 exemple
                                 )
-                                st.info("🔍 Contexte RAG appliqué pour améliorer la génération")
+                                st.info("🔍 Contexte RAG appliqué avec 1 exemple pour améliorer la génération")
                             except Exception as e:
                                 st.warning(f"⚠️ Erreur RAG, utilisation du prompt standard: {e}")
                                 enhanced_prompt = prompt.replace("{data}", st.session_state.extracted_text)

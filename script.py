@@ -36,7 +36,7 @@ def generate_script(self, weather_data, language='arabic', broadcast_type='tv_ne
 
 
 
-def generate_script_with_ollama(prompt,model='command-r7b-arabic'):
+def generate_script_with_ollama(prompt,model='command-r7b-arabic:latest'):
 
 
     url ='http://localhost:11434/api/generate'
@@ -47,7 +47,7 @@ def generate_script_with_ollama(prompt,model='command-r7b-arabic'):
     }
     try:
         print(f"Ollama prompt: {prompt}")  # Debug: print prompt
-        response = requests.post(url, json=payload, timeout =180)
+        response = requests.post(url, json=payload, timeout =360)
         response.raise_for_status()
         result = response.json()
         print(f"Ollama raw response: {result}")  # Debug: print raw response

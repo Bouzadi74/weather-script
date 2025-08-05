@@ -100,19 +100,120 @@ class RAGWeatherGenerator:
         # 4. Recherche RAG classique
         try:
             search_prompt = f"{base_prompt} {weather_data}"
-            rag_context = self.rag_system.retrieve_context(search_prompt, top_k=top_k, diversify=diversify)
+            rag_context = self.rag_system.retrieve_context(search_prompt, top_k=1, diversify=diversify)  # Changé à top_k=1
             if rag_context:
-                context_summary = "\n".join([f"- {context}" for context in rag_context[:2]])
-                enhanced_prompt = f"""{base_prompt}\n\nContexte RAG:\n{context_summary}\n\nDonnées: {weather_data}"""
-                logger.info(f"Prompt amélioré avec {len(rag_context)} exemples RAG filtrés par type")
+                # Prendre seulement 1 exemple et utiliser la réponse complète
+                example_context = rag_context[0]
+                formatted_context = example_context.strip()
+                
+                enhanced_prompt = f"{base_prompt}\n\nالبيانات: {weather_data}\n\nمثال مرجعي (للإلهام فقط - لا تنسخه):\n{formatted_context}\n\n**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات. لا تنسخ من المثال المرجعي.**"
+                logger.info(f"Prompt amélioré avec 1 exemple RAG complet filtré par type")
                 return enhanced_prompt
             else:
                 logger.warning("Aucun contexte RAG trouvé, utilisation du prompt original")
-                return f"{base_prompt}\n\n{weather_data}"
+                return f"{base_prompt}\n\nالبيانات: {weather_data}\n\n**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات.**"
         except Exception as e:
             logger.error(f"Erreur lors de l'amélioration du prompt: {e}")
-            return f"{base_prompt}\n\n{weather_data}"
+            return f"{base_prompt}\n\nالبيانات: {weather_data}\n\n**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات.**"
     
+    def enhance_prompt_with_chat_template(self, base_prompt: str, weather_data: str, file_types: dict = None, doc_type_labels: dict = None, top_k: int = 3, diversify: bool = True) -> str:
+        """
+        Améliore le prompt en utilisant l'approche chat template avec documents.
+        Similaire à l'exemple fourni par l'utilisateur.
+        
+        Args:
+            base_prompt: Le prompt de base
+            weather_data: Les données météorologiques extraites
+            file_types: Dictionnaire des types de fichiers sélectionnés par l'utilisateur
+            doc_type_labels: Dictionnaire des labels humains pour les types de fichiers
+            top_k: Nombre d'exemples similaires à récupérer
+            diversify: Si True, diversifie les résultats pour éviter la répétition
+            
+        Returns:
+            Prompt amélioré avec le contexte RAG structuré
+        """
+        try:
+            # 1. Récupérer les types sélectionnés par l'utilisateur
+            selected_types = set()
+            if file_types and doc_type_labels:
+                for t in file_types.values():
+                    selected_types.add(doc_type_labels.get(t, t))
+            
+            # 2. Filtrer le dataset selon le type
+            if selected_types:
+                filtered_dataset = [ex for ex in self.dataset if any(label in ex["prompt"] for label in selected_types)]
+                if not filtered_dataset:
+                    filtered_dataset = self.dataset  # fallback si rien trouvé
+            else:
+                filtered_dataset = self.dataset
+            
+            # 3. Charger ce sous-ensemble dans le RAG
+            self.rag_system.load_dataset_from_list(filtered_dataset)
+            self.rag_system.build_embeddings_index()
+            
+            # 4. Recherche RAG pour obtenir des documents pertinents
+            search_prompt = f"{base_prompt} {weather_data}"
+            rag_context = self.rag_system.retrieve_context(search_prompt, top_k=top_k, diversify=diversify)
+            
+            if rag_context:
+                # 5. Prendre seulement 1 exemple du RAG (réponse complète)
+                example_context = rag_context[0] if rag_context else ""
+                
+                # 6. Utiliser la réponse complète sans limitation de caractères
+                formatted_context = example_context.strip()
+                
+                # 7. Construire le prompt final avec la réponse complète
+                enhanced_prompt = f"{base_prompt}\n\nالبيانات: {weather_data}\n\nمثال مرجعي (للإلهام فقط - لا تنسخه):\n{formatted_context}\n\n**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات. لا تنسخ من المثال المرجعي.**"
+                
+                logger.info(f"Prompt amélioré avec 1 exemple RAG complet")
+                return enhanced_prompt
+            
+            # Fallback si aucun contexte RAG trouvé
+            logger.info("Aucun contexte RAG trouvé, utilisation du prompt standard")
+            return f"{base_prompt}\n\nالبيانات: {weather_data}\n\n**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات.**"
+                
+        except Exception as e:
+            logger.error(f"Erreur lors de l'amélioration du prompt avec chat template: {e}")
+            return f"{base_prompt}\n\nالبيانات: {weather_data}"
+    
+    def _build_chat_template_prompt(self, conversation: list, documents: list) -> str:
+        """
+        Construit le prompt final en utilisant le format chat template.
+        
+        Args:
+            conversation: Liste des messages de conversation
+            documents: Liste des documents pour le RAG
+            
+        Returns:
+            Prompt final formaté
+        """
+        # Format du chat template avec documents
+        prompt_parts = []
+        
+        # Ajouter les documents comme contexte avec meilleur formatage
+        if documents:
+            prompt_parts.append("الوثائق المرجعية (للإلهام فقط - لا تنسخها):")
+            for i, doc in enumerate(documents, 1):
+                # Améliorer le formatage des documents
+                clean_body = doc['body'].replace('\n', ' ').strip()
+                prompt_parts.append(f"- {doc['heading']}: {clean_body}")
+            prompt_parts.append("")  # Ligne vide
+        
+        # Ajouter la conversation avec formatage amélioré
+        for msg in conversation:
+            if msg["role"] == "user":
+                # Nettoyer et formater le contenu utilisateur
+                content = msg['content'].strip()
+                prompt_parts.append(f"المستخدم: {content}")
+            elif msg["role"] == "assistant":
+                content = msg['content'].strip()
+                prompt_parts.append(f"المساعد: {content}")
+        
+        # Ajouter l'invite de génération avec instruction claire
+        prompt_parts.append("المساعد: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. تجاهل الأمثلة المرجعية تماماً. استخدم فقط المدن والبيانات الموجودة في 'البيانات' أعلاه.")
+        
+        return "\n".join(prompt_parts)
+
     def generate_weather_script(self, weather_data: str, language: str = "arabic") -> str:
         """
         Génère un script météorologique avec le système RAG.
@@ -160,7 +261,7 @@ class RAGWeatherGenerator:
         return templates.get(language.lower(), templates["arabic"])
 
 
-def enhance_prompt_with_rag(base_prompt: str, weather_data: str, dataset: list, top_k: int = 3, diversify: bool = True) -> str:
+def enhance_prompt_with_rag(base_prompt: str, weather_data: str, dataset: list, top_k: int = 1, diversify: bool = True) -> str:
     """
     Fonction utilitaire pour améliorer un prompt avec le contexte RAG avec option de diversification.
     
@@ -168,7 +269,7 @@ def enhance_prompt_with_rag(base_prompt: str, weather_data: str, dataset: list, 
         base_prompt: Le prompt de base
         weather_data: Les données météorologiques
         dataset: Le dataset d'exemples
-        top_k: Nombre d'exemples à récupérer
+        top_k: Nombre d'exemples à récupérer (défaut: 1)
         diversify: Si True, diversifie les résultats pour éviter la répétition
         
     Returns:
@@ -177,24 +278,19 @@ def enhance_prompt_with_rag(base_prompt: str, weather_data: str, dataset: list, 
     try:
         # Récupération du contexte RAG avec diversification
         search_prompt = f"{base_prompt} {weather_data}"
-        rag_context = retrieve_context(search_prompt, dataset, top_k=top_k, diversify=diversify)
-        
+        rag_context = retrieve_context(search_prompt, dataset, top_k=1, diversify=diversify)  # Forcer top_k=1
         if rag_context:
-            # Construction du prompt amélioré (version raccourcie)
-            context_summary = "\n".join([f"- {context[:100]}..." for context in rag_context[:2]])
-            enhanced_prompt = f"""{base_prompt}
-
-Contexte RAG:
-{context_summary}
-
-Données: {weather_data}"""
+            # Prendre seulement 1 exemple et utiliser la réponse complète
+            example_context = rag_context[0]
+            formatted_context = example_context.strip()
+            
+            enhanced_prompt = f"{base_prompt}\n\nالبيانات: {weather_data}\n\nمثال مرجعي (للإلهام فقط - لا تنسخه):\n{formatted_context}\n\n**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات. لا تنسخ من المثال المرجعي.**"
             return enhanced_prompt
         else:
-            return f"{base_prompt}\n\n{weather_data}"
-            
+            return f"{base_prompt}\n\nالبيانات: {weather_data}\n\n**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات.**"
     except Exception as e:
         logger.error(f"Erreur lors de l'amélioration du prompt: {e}")
-        return f"{base_prompt}\n\n{weather_data}"
+        return f"{base_prompt}\n\nالبيانات: {weather_data}\n\n**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات.**"
 
 
 # Exemple d'utilisation dans l'application Streamlit
