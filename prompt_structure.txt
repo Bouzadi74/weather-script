@@ -1,0 +1,116 @@
+STRUCTURE DU PROMPT ENVOYÉ AU LLM (OLLAMA)
+============================================
+
+1. PROMPT DE BASE (depuis prompt_weather.txt)
+---------------------------------------------
+Le prompt de base est chargé depuis le fichier "prompt_weather.txt" selon la langue sélectionnée :
+
+[ARABIC]
+أنت مذيع نشرة جوية محترف. مهمتك هي توليد فقرة واحدة فقط، بأسلوب إذاعي رسمي باللغة العربية الفصحى، تبدأ فيها بالتاريخ والتحية، ثم تقدم وصفًا عامًا لحالة الطقس في المغرب وأوروبا بناءً على البيانات التي ستُزود بها.
+
+**لا تستخدم أمثلة سابقة ولا تعيد عرضها. لا تستخدم التعداد النقطي أو علامات النجمة أو الفواصل بين المدن. لا تذكر مدنًا غير موجودة في البيانات. لا تُضِف معلومات غير موجودة.** يجب أن تكون النشرة على شكل فقرة واحدة متناسقة، تبدأ بتاريخ اليوم ثم تحية رسمية، ثم تلخيص عام، ثم دمج درجات الحرارة والظواهر الجوية لكل مدينة ضمن النص، بأسلوب إذاعي طبيعي، دون تكرار أو فواصل صريحة بين كل مدينة وأخرى.
+
+استخدم الأرقام الغربية (0, 1, 2...) واذكر المدن كما هي واردة في البيانات.
+
+الوثائق: {document_types}
+
+[FRENCH]
+Vous êtes un présentateur météo professionnel. Commencez par une salutation, puis description générale du temps, puis températures et phénomènes par ville en un paragraphe fluide. Évitez répétitions et listes. Utilisez chiffres occidentaux (0,1,2...). Commencez par la date.
+
+Données: {weather_data}
+Documents: {document_types}
+
+[ENGLISH]
+You are a professional weather presenter. Start with a greeting, then general weather description, then temperatures and phenomena for each city in one flowing paragraph. Avoid repetition and bullet points. Use Western numerals (0,1,2...). Start with the date.
+
+Data: {weather_data}
+Documents: {document_types}
+
+2. REMPLACEMENT DES PLACEHOLDERS
+--------------------------------
+Le placeholder {document_types} est remplacé par la liste des types de documents :
+
+Exemple :
+- Bulletin_europe_rtm.pdf: Prévisions météo
+- DirectiveMarine00H.pdf: Bulletins marine
+- PreviAgroDPV.pdf: Données agroclimatiques
+
+3. DONNÉES MÉTÉOROLOGIQUES
+--------------------------
+Les données extraites des fichiers sont ajoutées après le prompt de base :
+
+البيانات: {weather_data}
+
+Exemple de données :
+--- Bulletin_europe_rtm.pdf ---
+REF: EN-R-00-08
+BULLETIN DE PREVISION SUR L'EUROPE
+ETABLI LE VENDREDI 28 MARS 2025
+Ville Tmax Phenomenes
+(DEMAIN) (DEMAIN)
+Lisbonne 23
+Madrid 18
+Geneve 11
+Paris 14
+...
+
+4. EXEMPLE RAG (si le système RAG est activé)
+---------------------------------------------
+Si le système RAG trouve un exemple similaire dans le dataset, il est ajouté :
+
+مثال مرجعي (للإلهام فقط - لا تنسخه):
+{REPONSE_COMPLÈTE_DU_DATASET}
+
+Exemple d'exemple RAG :
+أسعد الله أوقاتكم بكل خير، إليكم النشرة الجوية المتوقعة ليوم غد السبت في عدد من العواصم والمدن الأوروبية. تشير التوقعات إلى تنوع في الأحوال الجوية، حيث ستشهد المناطق الجنوبية أجواءً أكثر اعتدالاً مقارنةً بالشمال الذي سيسجل درجات حرارة أقل. في لشبونة، ستصل الحرارة إلى 23 درجة مع سماء صافية، بينما ستسجل مدريد 18 درجة تحت ظل غيوم متفرقة...
+
+5. INSTRUCTIONS FINALES
+-----------------------
+Les instructions finales sont ajoutées pour éviter la copie :
+
+**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات. لا تنسخ من المثال المرجعي.**
+
+6. STRUCTURE FINALE COMPLÈTE
+----------------------------
+Voici la structure complète du prompt envoyé au LLM avec placeholders :
+
+```
+{PROMPT_DE_BASE}
+
+الوثائق: 
+{DOCUMENT_TYPES}
+
+البيانات: 
+{WEATHER_DATA}
+
+مثال مرجعي (للإلهام فقط - لا تنسخه):
+{RAG_EXAMPLE}
+
+**مهم: اكتب نشرة جديدة تماماً بناءً على البيانات المقدمة فقط. لا تذكر أي مدينة غير موجودة في البيانات. لا تنسخ من المثال المرجعي.**
+```
+
+Où :
+- {PROMPT_DE_BASE} = Instructions de base selon la langue sélectionnée
+- {DOCUMENT_TYPES} = Liste des types de documents uploadés
+- {WEATHER_DATA} = Données météorologiques extraites des fichiers
+- {RAG_EXAMPLE} = Exemple complet du dataset (si RAG activé)
+
+7. VARIABLES ET CONFIGURATION
+-----------------------------
+- Modèle utilisé : command-r7b-arabic:latest
+- URL API : http://localhost:11434/api/generate
+- Timeout : 360 secondes
+- Stream : False
+
+8. GESTION DU CACHE
+-------------------
+Avant l'envoi au LLM, le système vérifie le cache :
+- Si le prompt existe déjà dans le cache → retourne la réponse immédiatement
+- Si pas dans le cache → envoie au LLM et sauvegarde la réponse
+
+9. GESTION D'ERREURS
+--------------------
+- Si erreur RAG → utilise le prompt sans exemple
+- Si erreur cache → continue sans cache
+- Si erreur Ollama → retourne None
+- Si réponse vide → retourne None 

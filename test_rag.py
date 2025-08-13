@@ -1,5 +1,6 @@
 """
 Script de test pour le système RAG avec embeddings Arabic Matryoshka.
+Teste les fonctionnalités de récupération sémantique et d'intégration RAG.
 """
 
 import json
@@ -8,10 +9,13 @@ from RAG import ArabicMatryoshkaRAG, retrieve_context
 from rag_integration import RAGWeatherGenerator, enhance_prompt_with_rag
 
 def test_basic_rag():
-    """Test basique du système RAG."""
+    """
+    Test basique du système RAG avec un dataset de test.
+    Vérifie la récupération de contexte sémantique.
+    """
     print("🧪 Test basique du système RAG...")
     
-    # Dataset de test
+    # Dataset de test avec exemples météorologiques
     test_dataset = [
         {
             "prompt": "أنت مذيع نشرة جوية محترف، تتحدث باللغة العربية الفصحى بصيغة رسمية ومناسبة للبث التلفزيوني. مهمتك هي توليد نشرة جوية طبيعية وسلسة بناءً على بيانات الطقس التي ستزود بها.",
@@ -40,7 +44,10 @@ def test_basic_rag():
         print(f"❌ Erreur lors du test: {e}")
 
 def test_rag_with_real_dataset():
-    """Test du RAG avec le vrai dataset."""
+    """
+    Test du RAG avec le dataset réel de scripts météorologiques.
+    Vérifie la performance avec des données réelles.
+    """
     print("\n🧪 Test du RAG avec le dataset réel...")
     
     try:
@@ -71,7 +78,10 @@ def test_rag_with_real_dataset():
         print(f"❌ Erreur lors du chargement du dataset: {e}")
 
 def test_rag_integration():
-    """Test de l'intégration RAG."""
+    """
+    Test de l'intégration RAG avec des données météorologiques simulées.
+    Vérifie l'amélioration des prompts avec le contexte RAG.
+    """
     print("\n🧪 Test de l'intégration RAG...")
     
     try:

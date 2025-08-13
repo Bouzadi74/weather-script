@@ -1,3 +1,8 @@
+"""
+Module d'extraction et de traitement de texte pour les données météorologiques.
+Gère l'extraction de texte depuis PDF, images, XML et le parsing des données météo.
+"""
+
 # text.py : Fonctions utilitaires pour l'extraction de texte et le parsing des données météo
 # Inclut l'extraction depuis PDF, image, XML et le parsing NLP des données météo
 
@@ -12,6 +17,15 @@ import xml.etree.ElementTree as ET
 
 
 def extract_text_from_pdf(pdf_file):
+    """
+    Extrait le texte d'un fichier PDF.
+    
+    Args:
+        pdf_file: Fichier PDF à traiter
+    
+    Returns:
+        Texte extrait ou None en cas d'erreur
+    """
     try:
         text =""
         with pdfplumber.open(pdf_file) as pdf:
@@ -23,6 +37,15 @@ def extract_text_from_pdf(pdf_file):
         return None
 
 def extract_text_from_image(image_file):
+    """
+    Extrait le texte d'une image avec OCR (Tesseract).
+    
+    Args:
+        image_file: Fichier image à traiter
+    
+    Returns:
+        Texte extrait ou None en cas d'erreur
+    """
     try:
         image = Image.open(image_file)
         costum_config = r'--oem 3 --psm 6 -l ara+fra+eng'
@@ -31,8 +54,17 @@ def extract_text_from_image(image_file):
     except Exception as e:
         st.error(f"Erreur image : {str(e)}")
         return None
+
 def extract_text_from_xml(xml_file):
-    """Extraire le texte d'un fichier XML"""
+    """
+    Extrait le texte d'un fichier XML.
+    
+    Args:
+        xml_file: Fichier XML à traiter
+    
+    Returns:
+        Texte extrait ou None en cas d'erreur
+    """
     try:
         tree = ET.parse(xml_file)
         root = tree.getroot()
@@ -44,7 +76,18 @@ def extract_text_from_xml(xml_file):
 
 @st.cache_data(ttl=3600)
 def improved_parse_weather_data(text, moroccan_cities=None, european_cities=None):
-    # extraire la date apres 'etablie le' 
+    """
+    Parse et extrait les données météorologiques d'un texte.
+    
+    Args:
+        text: Texte contenant les données météo
+        moroccan_cities: Liste des villes marocaines (optionnel)
+        european_cities: Liste des villes européennes (optionnel)
+    
+    Returns:
+        Dictionnaire contenant les données météo structurées
+    """
+    # Extraction de la date après 'etablie le'
     date = None
     etablie_pattern = re.compile(r'etablie\s+le\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})', re.IGNORECASE)
     etablie_match = etablie_pattern.search(text)
@@ -54,11 +97,13 @@ def improved_parse_weather_data(text, moroccan_cities=None, european_cities=None
         date_match = re.search(r'(\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2})', text)
         date = date_match.group(0) if date_match else datetime.now().strftime('%Y-%m-%d')
 
+    # Extraction des données ville/température/phénomène
     city_temp_pheno = []
     city_pattern = re.compile(r'([\u0600-\u06FF]{2,}|[A-Z][a-zA-Z\-]{1,})')
     temp_pattern = re.compile(r'(\d{1,3})\s*[°C]*')
     pheno_pattern = re.compile(r'(صافية|غائم|ممطر|ثلج|عاصف|Clear|Cloudy|Rain|Snow|Storm|Sunny|Fog|Mist)', re.IGNORECASE)
 
+    # Mots à exclure (non-villes)
     non_city_words = set([
         'LE', 'LA', 'LES', 'ET', 'VENDREDI', 'SAMEDI', 'DIMANCHE', 'LUNDI', 'MARDI', 'MERCREDI', 'JEUDI',
         'JANVIER', 'FEVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOUT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DECEMBRE',
@@ -66,27 +111,28 @@ def improved_parse_weather_data(text, moroccan_cities=None, european_cities=None
         'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
     ])
 
+    # Traitement ligne par ligne
     for line in text.split('\n'):
-        # Find all city-like words
+        # Recherche des villes, températures et phénomènes
         city_matches = city_pattern.findall(line)
         temp_match = temp_pattern.search(line)
         pheno_match = pheno_pattern.search(line)
         temp = int(temp_match.group(1)) if temp_match else None
         pheno = pheno_match.group(1) if pheno_match else ''
-        # Only add if a city and a temp are found
+        
+        # Ajout seulement si ville et température trouvées
         for city in city_matches:
-            # Avoid adding numbers or weather words as cities
             if not temp and not pheno:
                 continue
-            # Filter out false positives (e.g., 'Rain', 'Cloudy' as city)
+            # Filtrage des faux positifs
             if pheno and city.lower() == pheno.lower():
                 continue
-            # Filter out common non-city words
+            # Exclusion des mots non-villes
             if city.upper() in non_city_words:
                 continue
             city_temp_pheno.append({"name": city, "temp": temp, "condition": pheno})
 
-    # Context detection (optional, fallback to 'General')
+    # Détection du contexte (Maroc/Europe)
     context = "General"
     if moroccan_cities and european_cities:
         moroccan_count = sum(1 for c in city_temp_pheno if c['name'] in moroccan_cities)

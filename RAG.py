@@ -1,6 +1,7 @@
 """
-Système RAG (Retrieval-Augmented Generation) utilisant les embeddings Arabic Matryoshka
-pour la récupération sémantique de contextes météorologiques.
+Système RAG (Retrieval-Augmented Generation) pour la génération de scripts météorologiques.
+Utilise les embeddings Arabic Matryoshka pour la récupération sémantique de contextes.
+Améliore la qualité des scripts en fournissant des exemples pertinents.
 """
 
 import json
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 class ArabicMatryoshkaRAG:
     """
     Système RAG utilisant les embeddings Arabic Matryoshka pour la récupération sémantique.
+    Permet de trouver des exemples pertinents dans un dataset de scripts météorologiques.
     """
     
     def __init__(self, 

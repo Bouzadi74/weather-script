@@ -1,3 +1,8 @@
+"""
+Module de génération de scripts météorologiques avec Ollama.
+Gère la communication avec l'API Ollama locale pour générer des bulletins météo.
+"""
+
 # script.py : Fonctions utilitaires pour la génération de scripts et l'intégration LLM
 # Inclut les fonctions pour générer des scripts avec HuggingFace et Ollama
 import requests
@@ -6,21 +11,33 @@ from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 import torch
 
 def generate_script(self, weather_data, language='arabic', broadcast_type='tv_news', tone='formal', duration='medium' ):
+    """
+    Génère un script météorologique complet avec templates.
+    
+    Args:
+        weather_data: Données météo à traiter
+        language: Langue du script (arabic, french, english)
+        broadcast_type: Type de diffusion (tv_news, radio, etc.)
+        tone: Ton du script (formal, casual, etc.)
+        duration: Durée du script (short, medium, long)
+    
+    Returns:
+        Script météorologique généré
+    """
     if not weather_data:
         return "No weather data available to generate script."
     
     templates = self.script_templates.get(language, self.script_templates['arabic'])
     
-    # build the script 
+    # Construction du script
     script_parts = []
 
-    #opening
+    # Ouverture
     opening = templates['opening'].get(broadcast_type, templates["opening"]["tv_news"])
     script_parts.append(opening)
     script_parts.append('\n\n')
 
-    #weather details
-
+    # Détails météorologiques
     if language == 'arabic':
         script_parts.append(self.generate_arabic_weather_content(weather_data, duration))
     elif language == 'french':
@@ -28,17 +45,23 @@ def generate_script(self, weather_data, language='arabic', broadcast_type='tv_ne
     else:
         script_parts.append(self.generate_english_weather_content(weather_data, duration))
 
-    #closing
-
+    # Fermeture
     closing =templates['closing'].get(tone, templates['closing']['formal'])
     script_parts.append(f'\n\n{closing}')
     return ''.join(script_parts)
 
 
-
-def generate_script_with_ollama(prompt,model='command-r7b-arabic:latest'):
-
-
+def generate_script_with_ollama(prompt, model='command-r7b-arabic:latest'):
+    """
+    Génère un script météorologique en utilisant l'API Ollama locale.
+    
+    Args:
+        prompt: Prompt à envoyer à Ollama
+        model: Modèle Ollama à utiliser
+    
+    Returns:
+        Script généré ou None en cas d'erreur
+    """
     url ='http://localhost:11434/api/generate'
     payload ={
         "model": model,
@@ -46,11 +69,11 @@ def generate_script_with_ollama(prompt,model='command-r7b-arabic:latest'):
         "stream": False,
     }
     try:
-        print(f"Ollama prompt: {prompt}")  # Debug: print prompt
+        print(f"Ollama prompt: {prompt}")  # Debug: affichage du prompt
         response = requests.post(url, json=payload, timeout =360)
         response.raise_for_status()
         result = response.json()
-        print(f"Ollama raw response: {result}")  # Debug: print raw response
+        print(f"Ollama raw response: {result}")  # Debug: affichage de la réponse
         script = result.get("response", "")
         if not script or script.strip() == "":
             print("Ollama returned empty script.")

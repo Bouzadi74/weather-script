@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Script d'installation pour le système RAG avec embeddings Arabic Matryoshka.
+Script d'installation automatique pour le système RAG météorologique.
+Installe les dépendances, vérifie la configuration et teste l'installation.
 """
 
 import subprocess
@@ -10,7 +11,12 @@ import json
 from pathlib import Path
 
 def check_python_version():
-    """Vérifie la version de Python."""
+    """
+    Vérifie que la version de Python est compatible (3.8+).
+    
+    Returns:
+        bool: True si la version est compatible
+    """
     if sys.version_info < (3, 8):
         print("❌ Python 3.8+ requis. Version actuelle:", sys.version)
         return False
@@ -18,9 +24,15 @@ def check_python_version():
     return True
 
 def install_dependencies():
-    """Installe les dépendances nécessaires."""
+    """
+    Installe les dépendances Python nécessaires pour le système RAG.
+    
+    Returns:
+        bool: True si toutes les dépendances sont installées
+    """
     print("📦 Installation des dépendances...")
     
+    # Liste des dépendances requises
     dependencies = [
         "sentence-transformers>=2.2.0",
         "faiss-cpu>=1.7.4",
@@ -42,7 +54,12 @@ def install_dependencies():
     return True
 
 def check_dataset():
-    """Vérifie la présence et la validité du dataset."""
+    """
+    Vérifie la présence et la validité du dataset de scripts météorologiques.
+    
+    Returns:
+        bool: True si le dataset est valide
+    """
     print("📊 Vérification du dataset...")
     
     dataset_path = "dataset.json"
@@ -62,7 +79,7 @@ def check_dataset():
             print("❌ Le dataset est vide")
             return False
         
-        # Vérification de la structure
+        # Vérification de la structure des données
         for i, item in enumerate(dataset):
             if not isinstance(item, dict):
                 print(f"❌ Item {i} n'est pas un dictionnaire")
@@ -83,7 +100,12 @@ def check_dataset():
         return False
 
 def test_imports():
-    """Teste l'importation des modules requis."""
+    """
+    Teste l'importation des modules requis pour le système RAG.
+    
+    Returns:
+        bool: True si tous les modules peuvent être importés
+    """
     print("🧪 Test des imports...")
     
     modules_to_test = [

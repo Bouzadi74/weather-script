@@ -1,5 +1,7 @@
 """
 Système de cache intelligent pour les prompts et réponses météorologiques.
+Utilise la similarité sémantique pour éviter de régénérer des réponses similaires.
+Améliore les performances et réduit les coûts d'API.
 """
 
 import json
@@ -18,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 class WeatherCache:
     """
-    Système de cache intelligent pour les prompts et réponses météorologiques.
+    Classe de cache intelligent pour les données météorologiques.
+    Utilise des embeddings pour détecter les prompts similaires.
     """
     
     def __init__(self, cache_file: str = "weather_cache.json", similarity_threshold: float = 0.85):
@@ -29,6 +32,12 @@ class WeatherCache:
             cache_file: Fichier de cache JSON
             similarity_threshold: Seuil de similarité pour considérer un prompt comme similaire
         """
+        
+        """
+            cache_file: Fichier de cache JSON
+            similarity_threshold: Seuil de similarité pour considérer un prompt comme similaire
+        """
+
         self.cache_file = cache_file
         self.similarity_threshold = similarity_threshold
         self.cache_data = self._load_cache()
